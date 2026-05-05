@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router";
 import baseUrl from "../constant/baseUrl";
 import { useTheme } from "../context/ThemeContext";
 import Toastify from "toastify-js";
+
 export default function Game() {
   const socketRef = useRef(null);
   const [searchParams] = useSearchParams();
@@ -24,7 +25,8 @@ export default function Game() {
   const [winner, setWinner] = useState(null);
   const [roomId, setRoomId] = useState(null);
   const [playerSymbol, setPlayerSymbol] = useState(null);
-  const [isWaiting, setIsWaiting] = useState(false);
+  const [isWaiting, setIsWaiting] = useState(true);
+  const [setGameStarted] = useState(false);
 
   function handleMove(r, c) {
     if (!socketRef.current) return;
@@ -37,22 +39,38 @@ export default function Game() {
   }
 
   useEffect(() => {
-    const socket = io(baseUrl, { transports: ["websocket"] });
+    const socket = io(baseUrl, {
+      transports: ["websocket"],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 5,
+    });
     socketRef.current = socket;
 
     socket.on("roomCreated", (id) => {
+      console.log("Room created:", id);
       setRoomId(id);
+      setGameStarted(false);
       setIsWaiting(true);
       window.history.replaceState(null, "", `/game?roomId=${id}`);
     });
 
-    socket.on("waitingPlayer", () => setIsWaiting(true));
+    socket.on("waitingPlayer", () => {
+      console.log("Waiting for opponent...");
+      setGameStarted(false);
+      setIsWaiting(true);
+    });
 
     socket.on("playerLeft", () => {
+      console.log("Opponent left");
+      setGameStarted(false);
       setIsWaiting(true);
       setWinner(null);
     });
+
     socket.on("roomNotFound", () => {
+      console.log("Room not found");
       Toastify({
         text: "Room tidak ditemukan!",
         duration: 2000,
@@ -66,14 +84,48 @@ export default function Game() {
       navigate("/");
     });
 
+    socket.on("roomFull", () => {
+      console.log("Room is full");
+      Toastify({
+        text: "Room sudah penuh!",
+        duration: 2000,
+        gravity: "top",
+        position: "right",
+        style: {
+          background: "#ef4444",
+        },
+      }).showToast();
+
+      navigate("/");
+    });
+
+    socket.on("alreadyInRoom", () => {
+      console.log("Already in this room");
+      Toastify({
+        text: "Anda sudah di dalam room ini!",
+        duration: 2000,
+        gravity: "top",
+        position: "right",
+        style: {
+          background: "#ef4444",
+        },
+      }).showToast();
+    });
+
     socket.on("startGame", (data) => {
+      console.log("Game started with data:", data);
+      console.log("My socket ID:", socket.id);
+      console.log("All players:", data.players);
+
       setBoard(data.board);
       setTurn(data.turn);
       setRoomId(data.roomId);
       setWinner(null);
+      setGameStarted(true);
       setIsWaiting(false);
 
       const mySymbol = data.players[socket.id];
+      console.log("My symbol:", mySymbol);
       setPlayerSymbol(mySymbol);
     });
 
@@ -83,14 +135,28 @@ export default function Game() {
       setWinner(winner);
     });
 
-    if (urlRoomId) {
-      socket.emit("joinRoom", urlRoomId);
-    } else {
-      socket.emit("createRoom", { size });
-    }
+    socket.on("connect", () => {
+      console.log("Connected to server:", socket.id);
 
-    return () => socket.disconnect();
-  }, []);
+      setTimeout(() => {
+        if (urlRoomId) {
+          console.log("Joining room:", urlRoomId);
+          socket.emit("joinRoom", urlRoomId);
+        } else {
+          console.log("Creating new room");
+          socket.emit("createRoom", { size });
+        }
+      }, 100);
+    });
+
+    socket.on("connect_error", (error) => {
+      console.error("Connection error:", error);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [navigate, urlRoomId, size]);
 
   function copyRoomId() {
     if (!roomId) return;
@@ -107,7 +173,7 @@ export default function Game() {
       style: {
         background: "linear-gradient(to right, #00b09b, #96c93d)",
       },
-      onClick: function () {}, // Callback after click
+      onClick: function () {},
     }).showToast();
   }
 
