@@ -1,3 +1,3 @@
-const baseUrl = "https://kelompok-1-group-project-production.up.railway.app";
+const baseUrl = "http://localhost:3001";
 
 export default baseUrl;

@@ -20,6 +20,8 @@ module.exports = (io, socket) => {
 
     socket.join(roomId);
 
+    console.log(`Room ${roomId} created by player ${socket.id}`);
+
     socket.emit("roomCreated", roomId);
     socket.emit("waitingPlayer");
   });
@@ -30,20 +32,26 @@ module.exports = (io, socket) => {
       socket.emit("roomNotFound");
       return;
     }
-    if (room.players.length >= 2) return;
-    if (room.players.includes(socket.id)) return;
+    if (room.players.length >= 2) {
+      socket.emit("roomFull");
+      return;
+    }
+    if (room.players.includes(socket.id)) {
+      socket.emit("alreadyInRoom");
+      return;
+    }
+
+    const wasWaiting = room.players.length === 1;
 
     room.players.push(socket.id);
     socket.join(roomId);
 
-    io.to(roomId).emit("playerCount", room.players.length);
+    console.log(
+      `Player ${socket.id} joined room ${roomId}. Total players: ${room.players.length}`,
+    );
 
-    if (room.players.length === 1) {
-      socket.emit("waitingPlayer");
-    }
-
-    if (room.players.length === 2) {
-      io.to(roomId).emit("startGame", {
+    if (wasWaiting && room.players.length === 2) {
+      const gameData = {
         roomId,
         board: room.board,
         turn: room.turn,
@@ -53,7 +61,15 @@ module.exports = (io, socket) => {
           [room.players[0]]: "X",
           [room.players[1]]: "O",
         },
-      });
+      };
+
+      console.log(
+        `Starting game in room ${roomId} with players:`,
+        room.players,
+      );
+      io.to(roomId).emit("startGame", gameData);
+    } else if (room.players.length === 1) {
+      socket.emit("waitingPlayer");
     }
   });
 
@@ -225,23 +241,30 @@ module.exports = (io, socket) => {
   });
 
   socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+
     for (const roomId in rooms) {
       const room = rooms[roomId];
 
       if (!room.players.includes(socket.id)) continue;
 
+      console.log(`Removing player ${socket.id} from room ${roomId}`);
       room.players = room.players.filter((id) => id !== socket.id);
 
       if (room.players.length === 1) {
+        console.log(`Player left room ${roomId}, remaining player is waiting`);
+        io.to(roomId).emit("playerLeft");
         io.to(roomId).emit("waitingPlayer");
       }
 
       if (room.players.length === 0) {
+        console.log(`Room ${roomId} is now empty, deleting it`);
         delete rooms[roomId];
       }
     }
 
     if (waitingPlayer?.socket.id === socket.id) {
+      console.log("Waiting player disconnected");
       waitingPlayer = null;
     }
   });

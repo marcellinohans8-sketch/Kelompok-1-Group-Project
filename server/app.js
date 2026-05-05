@@ -34,6 +34,6 @@ io.on("connection", (socket) => {
   gameSocket(io, socket);
 });
 
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+app.use(cors());
+
+server.listen(3001, () => console.log("Server running on port 3001"));
