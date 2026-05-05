@@ -1,4 +1,6 @@
 require("dotenv").config();
+const PORT = process.env.PORT || 3000;
+
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -8,8 +10,23 @@ const cors = require("cors");
 const app = express();
 const server = http.createServer(app);
 
+app.use(
+  cors({
+    origin: "https://kelompok-1-group-project.vercel.app",
+    credentials: true,
+  }),
+);
+
+app.get("/", (req, res) => {
+  res.send("Server is running");
+});
+
 const io = new Server(server, {
-  cors: { origin: "*" },
+  cors: {
+    origin: "https://kelompok-1-group-project.vercel.app",
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
 });
 
 io.on("connection", (socket) => {
