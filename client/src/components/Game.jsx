@@ -12,7 +12,6 @@ export default function Game() {
   const navigate = useNavigate();
 
   const isDark = theme === "dark";
-
   const size = 3;
   const urlRoomId = searchParams.get("roomId");
 
@@ -26,7 +25,6 @@ export default function Game() {
   const [roomId, setRoomId] = useState(null);
   const [playerSymbol, setPlayerSymbol] = useState(null);
   const [isWaiting, setIsWaiting] = useState(true);
-  const [setGameStarted] = useState(false);
 
   function handleMove(r, c) {
     if (!socketRef.current) return;
@@ -51,20 +49,17 @@ export default function Game() {
     socket.on("roomCreated", (id) => {
       console.log("Room created:", id);
       setRoomId(id);
-      setGameStarted(false);
       setIsWaiting(true);
       window.history.replaceState(null, "", `/game?roomId=${id}`);
     });
 
     socket.on("waitingPlayer", () => {
       console.log("Waiting for opponent...");
-      setGameStarted(false);
       setIsWaiting(true);
     });
 
     socket.on("playerLeft", () => {
       console.log("Opponent left");
-      setGameStarted(false);
       setIsWaiting(true);
       setWinner(null);
     });
@@ -112,6 +107,20 @@ export default function Game() {
       }).showToast();
     });
 
+    socket.on("duplicatePlayerName", () => {
+      Toastify({
+        text: "Nama pemain sudah dipakai di room ini. Ganti nama dulu!",
+        duration: 2500,
+        gravity: "top",
+        position: "right",
+        style: {
+          background: "#ef4444",
+        },
+      }).showToast();
+
+      navigate("/");
+    });
+
     socket.on("startGame", (data) => {
       console.log("Game started with data:", data);
       console.log("My socket ID:", socket.id);
@@ -121,7 +130,6 @@ export default function Game() {
       setTurn(data.turn);
       setRoomId(data.roomId);
       setWinner(null);
-      setGameStarted(true);
       setIsWaiting(false);
 
       const mySymbol = data.players[socket.id];
@@ -137,14 +145,15 @@ export default function Game() {
 
     socket.on("connect", () => {
       console.log("Connected to server:", socket.id);
+      const playerName = localStorage.getItem("playerName") || "Guest";
 
       setTimeout(() => {
         if (urlRoomId) {
           console.log("Joining room:", urlRoomId);
-          socket.emit("joinRoom", urlRoomId);
+          socket.emit("joinRoom", { roomId: urlRoomId, playerName });
         } else {
           console.log("Creating new room");
-          socket.emit("createRoom", { size });
+          socket.emit("createRoom", { size, playerName });
         }
       }, 100);
     });
@@ -163,66 +172,142 @@ export default function Game() {
     navigator.clipboard.writeText(roomId);
     Toastify({
       text: "Room ID copied to clipboard!",
-      duration: 3000,
-      destination: "https://github.com/apvarun/toastify-js",
-      newWindow: true,
+      duration: 2500,
       close: true,
-      gravity: "top", // `top` or `bottom`
-      position: "left", // `left`, `center` or `right`
-      stopOnFocus: true, // Prevents dismissing of toast on hover
+      gravity: "top",
+      position: "right",
+      stopOnFocus: true,
       style: {
-        background: "linear-gradient(to right, #00b09b, #96c93d)",
+        background: "#06b6d4",
+        color: "#0f172a",
+        fontWeight: "800",
       },
-      onClick: function () {},
     }).showToast();
   }
 
   return (
     <div
-      className={`min-h-screen flex items-center justify-center
-      ${isDark ? "bg-gray-900" : "bg-gray-100"} px-4`}
+      className={`min-h-screen px-4 py-6 transition-colors ${
+        isDark
+          ? "bg-slate-950 text-slate-100"
+          : "bg-[linear-gradient(135deg,#f8fafc_0%,#eef2ff_50%,#ecfeff_100%)] text-slate-950"
+      }`}
     >
-      <div
-        className={`p-8 rounded-2xl shadow-lg text-center w-full max-w-md
-        ${isDark ? "bg-gray-700" : "bg-white"}`}
-      >
-        <h2 className='text-2xl font-bold mb-2'>👥 Multiplayer</h2>
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-5xl items-center justify-center">
+        <main
+          className={`grid w-full gap-6 rounded-[2rem] border p-5 shadow-2xl md:grid-cols-[0.9fr_1.1fr] md:p-8 ${
+            isDark
+              ? "border-slate-800 bg-slate-900/90 shadow-black/30"
+              : "border-white/80 bg-white/90 shadow-slate-200"
+          }`}
+        >
+          <section className="flex flex-col justify-between gap-6">
+            <div>
+              <p
+                className={`text-sm font-semibold uppercase tracking-[0.2em] ${
+                  isDark ? "text-cyan-300" : "text-cyan-700"
+                }`}
+              >
+                Multiplayer
+              </p>
+              <h1 className="mt-2 text-4xl font-black">Room Battle</h1>
+              <p className={isDark ? "mt-3 text-slate-400" : "mt-3 text-slate-600"}>
+                Share the room code and wait for your opponent to join.
+              </p>
+            </div>
 
-        {roomId && (
-          <div className='flex items-center justify-center gap-2 text-sm mb-2'>
-            <span className='text-gray-500'>Room:</span>
-            <b>{roomId}</b>
-            <button
-              onClick={copyRoomId}
-              className='text-blue-500 hover:underline text-xs'
+            <div className="grid gap-3">
+              {roomId && (
+                <div
+                  className={`rounded-3xl border p-4 ${
+                    isDark
+                      ? "border-slate-800 bg-slate-950"
+                      : "border-slate-200 bg-slate-50"
+                  }`}
+                >
+                  <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                    Room ID
+                  </span>
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <b className="truncate text-lg">{roomId}</b>
+                    <button
+                      onClick={copyRoomId}
+                      className="rounded-full bg-cyan-500 px-4 py-2 text-sm font-black text-slate-950 transition hover:bg-cyan-400"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div
+                  className={`rounded-3xl border p-4 ${
+                    isDark
+                      ? "border-slate-800 bg-slate-950"
+                      : "border-slate-200 bg-slate-50"
+                  }`}
+                >
+                  <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                    Your mark
+                  </span>
+                  <p className="mt-2 text-3xl font-black">{playerSymbol || "-"}</p>
+                </div>
+                <div
+                  className={`rounded-3xl border p-4 ${
+                    isDark
+                      ? "border-slate-800 bg-slate-950"
+                      : "border-slate-200 bg-slate-50"
+                  }`}
+                >
+                  <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                    Turn
+                  </span>
+                  <p className="mt-2 text-3xl font-black">{winner ? "-" : turn}</p>
+                </div>
+              </div>
+            </div>
+
+            <div
+              className={`rounded-3xl border p-4 text-center font-black ${
+                isWaiting
+                  ? "border-amber-400/30 bg-amber-400/10 text-amber-500"
+                  : winner
+                    ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-500"
+                    : "border-cyan-400/30 bg-cyan-400/10 text-cyan-500"
+              }`}
             >
-              copy
+              {isWaiting
+                ? "Waiting for opponent..."
+                : winner
+                  ? `Winner: ${winner}`
+                  : turn === playerSymbol
+                    ? "Your turn"
+                    : "Opponent turn"}
+            </div>
+
+            <button
+              onClick={() =>
+                navigate("/", {
+                  state: { message: "Successfully back to home!" },
+                })
+              }
+              className={`rounded-2xl px-5 py-3 font-black transition ${
+                isDark
+                  ? "bg-slate-800 text-white hover:bg-slate-700"
+                  : "bg-slate-950 text-white hover:bg-slate-800"
+              }`}
+            >
+              Back to home
             </button>
-          </div>
-        )}
+          </section>
 
-        {playerSymbol && (
-          <p className='text-sm mb-2'>
-            You are: <b>{playerSymbol}</b>
-          </p>
-        )}
-
-        {isWaiting ? (
-          <h3 className='text-yellow-500 mb-4 animate-pulse'>
-            Waiting for opponent...
-          </h3>
-        ) : winner ? (
-          <h2 className='text-green-500 font-bold mb-4'>🎉 Winner: {winner}</h2>
-        ) : (
-          <h3 className='mb-4'>
-            Turn: <b>{turn}</b>
-          </h3>
-        )}
-
-        {!isWaiting && (
           <div
-            className={`grid grid-cols-3 mt-4 w-fit mx-auto border-4
-            ${isDark ? "border-gray-500" : "border-black"}`}
+            className={`mx-auto grid aspect-square w-full max-w-[420px] grid-cols-3 gap-3 rounded-[2rem] border p-3 ${
+              isDark
+                ? "border-slate-800 bg-slate-950"
+                : "border-slate-200 bg-slate-100"
+            } ${isWaiting ? "opacity-50" : ""}`}
           >
             {board.flat().map((cell, i) => {
               const r = Math.floor(i / size);
@@ -232,36 +317,23 @@ export default function Game() {
                 <button
                   key={i}
                   onClick={() => handleMove(r, c)}
-                  disabled={!!cell || winner || turn !== playerSymbol}
-                  className={`
-          w-20 h-20 text-2xl font-bold
-          flex items-center justify-center
-          transition
-          ${cell ? (isDark ? "bg-gray-600" : "bg-gray-200") : isDark ? "hover:bg-blue-500" : "hover:bg-blue-100"}
-          ${isDark ? "border border-gray-500" : "border border-black"}
-        `}
-                  style={{
-                    margin: 0,
-                    padding: 0,
-                  }}
+                  disabled={isWaiting || !!cell || winner || turn !== playerSymbol}
+                  className={`flex aspect-square items-center justify-center rounded-3xl text-5xl font-black leading-none shadow-sm transition hover:-translate-y-0.5 ${
+                    cell === "X"
+                      ? "bg-cyan-500 text-slate-950"
+                      : cell === "O"
+                        ? "bg-violet-500 text-white"
+                        : isDark
+                          ? "bg-slate-900 hover:bg-slate-800"
+                          : "bg-white hover:bg-cyan-50"
+                  }`}
                 >
                   {cell}
                 </button>
               );
             })}
           </div>
-        )}
-
-        <button
-          onClick={() =>
-            navigate("/", {
-              state: { message: "Successfully back to home!" },
-            })
-          }
-          className='mt-6 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition'
-        >
-          Back to home
-        </button>
+        </main>
       </div>
     </div>
   );

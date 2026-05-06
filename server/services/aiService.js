@@ -1,9 +1,3 @@
-const OpenAI = require("openai");
-
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 function checkWinner(board, size) {
   for (let i = 0; i < size; i++) {
     if (board[i][0] && board[i].every((c) => c === board[i][0]))
@@ -34,33 +28,52 @@ async function getAIMove(board, aiSymbol, size) {
 
   if (empty.length === 0) return { index: -1 };
 
-  try {
-    const res = await client.chat.completions.create({
-      model: "gpt-4.1-mini",
-      messages: [
-        {
-          role: "system",
-          content: "Pilih langkah TicTacToe terbaik. Balas hanya angka index.",
-        },
-        {
-          role: "user",
-          content: `Board: ${JSON.stringify(board)}\nEmpty: ${empty.join(",")}`,
-        },
-      ],
-    });
+  return getBestLocalMove(board, aiSymbol, size, empty);
+}
 
-    const index = Number(res.choices[0].message.content);
+function getBestLocalMove(board, aiSymbol, size, empty) {
+  const humanSymbol = aiSymbol === "O" ? "X" : "O";
 
-    if (empty.includes(index)) {
-      return { index };
-    }
-  } catch (err) {
-    console.error("AI error:", err.message);
+  const winningMove = findImmediateMove(board, size, empty, aiSymbol);
+  if (winningMove !== null) {
+    return { index: winningMove, explanation: "AI mengambil langkah menang." };
+  }
+
+  const blockingMove = findImmediateMove(board, size, empty, humanSymbol);
+  if (blockingMove !== null) {
+    return { index: blockingMove, explanation: "AI memblokir ancaman lawan." };
+  }
+
+  const center = Math.floor((size * size) / 2);
+  if (empty.includes(center)) {
+    return { index: center, explanation: "AI mengambil posisi tengah." };
+  }
+
+  const corners = [0, size - 1, size * (size - 1), size * size - 1];
+  const openCorner = corners.find((index) => empty.includes(index));
+  if (openCorner !== undefined) {
+    return { index: openCorner, explanation: "AI mengambil sudut kosong." };
   }
 
   return {
-    index: empty[Math.floor(Math.random() * empty.length)],
+    index: empty[0],
+    explanation: "AI mengambil kotak kosong pertama.",
   };
+}
+
+function findImmediateMove(board, size, empty, symbol) {
+  for (const index of empty) {
+    const row = Math.floor(index / size);
+    const col = index % size;
+
+    board[row][col] = symbol;
+    const winner = checkWinner(board, size);
+    board[row][col] = null;
+
+    if (winner === symbol) return index;
+  }
+
+  return null;
 }
 
 module.exports = { getAIMove, checkWinner };

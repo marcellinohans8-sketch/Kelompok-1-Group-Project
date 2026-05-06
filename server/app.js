@@ -1,18 +1,25 @@
 require("dotenv").config();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const gameSocket = require("./socket/gameSocket");
+const { getLeaderboard, getMatchHistory } = require("./services/matchStore");
 const cors = require("cors");
 
 const app = express();
 const server = http.createServer(app);
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "https://kelompok-1-group-project.vercel.app",
+  process.env.CLIENT_URL,
+].filter(Boolean);
 
 app.use(
   cors({
-    origin: "https://kelompok-1-group-project.vercel.app",
+    origin: allowedOrigins,
     credentials: true,
   }),
 );
@@ -21,9 +28,17 @@ app.get("/", (req, res) => {
   res.send("Server is running");
 });
 
+app.get("/leaderboard", (req, res) => {
+  res.json(getLeaderboard());
+});
+
+app.get("/matches", (req, res) => {
+  res.json(getMatchHistory());
+});
+
 const io = new Server(server, {
   cors: {
-    origin: "https://kelompok-1-group-project.vercel.app",
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -34,6 +49,4 @@ io.on("connection", (socket) => {
   gameSocket(io, socket);
 });
 
-app.use(cors());
-
-server.listen(3001, () => console.log("Server running on port 3001"));
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
