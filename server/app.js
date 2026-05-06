@@ -11,7 +11,7 @@ const cors = require("cors");
 const app = express();
 const server = http.createServer(app);
 const allowedOrigins = [
-  "https://kelompok-1-group-project-hl83.vercel.app/",
+  "https://kelompok-1-group-project-hl83.vercel.app",
   process.env.CLIENT_URL,
 ].filter(Boolean);
 
