@@ -24,6 +24,7 @@ export default function GameAI() {
   const [roomId, setRoomId] = useState(null);
   const [isThinking, setIsThinking] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  const [connectionError, setConnectionError] = useState("");
 
   function showToast(text, color = "#ef4444") {
     Toastify({
@@ -61,8 +62,26 @@ export default function GameAI() {
     const socket = io(baseUrl, {
       transports: ["polling", "websocket"],
       withCredentials: true,
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
     socketRef.current = socket;
+
+    function joinAI() {
+      setConnectionError("");
+      socket.emit("joinAI", {
+        size,
+        playerName: localStorage.getItem("playerName") || "Guest",
+      });
+    }
+
+    socket.on("connect", joinAI);
+
+    socket.on("connect_error", (error) => {
+      setIsReady(false);
+      setConnectionError(error.message || "Cannot connect to server");
+    });
 
     socket.on("startGame", (data) => {
       setBoard(data.board);
@@ -70,6 +89,7 @@ export default function GameAI() {
       setRoomId(data.roomId);
       setWinner(null);
       setIsReady(true);
+      setConnectionError("");
     });
 
     socket.on("updateGame", ({ board, turn, winner }) => {
@@ -84,11 +104,6 @@ export default function GameAI() {
 
     socket.on("aiThinking", ({ thinking }) => {
       setIsThinking(thinking);
-    });
-
-    socket.emit("joinAI", {
-      size,
-      playerName: localStorage.getItem("playerName") || "Guest",
     });
 
     return () => {
@@ -179,7 +194,7 @@ export default function GameAI() {
               {winner
                 ? `Winner: ${winner}`
                 : !isReady
-                  ? "Connecting..."
+                  ? connectionError || "Connecting..."
                   : isThinking
                   ? "AI is thinking..."
                   : turn === "X"

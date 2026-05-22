@@ -1,6 +1,6 @@
 const { io } = require("socket.io-client");
 
-const URL = "http://localhost:3001";
+const URL = "http://localhost:3015";
 
 function findEmptyIndex(board) {
   const size = board.length;

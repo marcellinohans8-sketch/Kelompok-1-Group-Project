@@ -10,6 +10,12 @@ const cors = require("cors");
 
 const app = express();
 const isProduction = process.env.NODE_ENV === "production";
+const PORT = process.env.PORT || 3015;
+const useLocalSsl =
+  isProduction &&
+  !process.env.PORT &&
+  fs.existsSync("/etc/letsencrypt/live/marcellino10.online/privkey.pem") &&
+  fs.existsSync("/etc/letsencrypt/live/marcellino10.online/fullchain.pem");
 
 const allowedOrigins = [
   "http://localhost:5173",
@@ -26,6 +32,13 @@ function isAllowedOrigin(origin) {
 
   try {
     const { hostname, protocol } = new URL(origin);
+    if (
+      (hostname === "localhost" || hostname === "127.0.0.1") &&
+      (protocol === "http:" || protocol === "https:")
+    ) {
+      return true;
+    }
+
     return (
       protocol === "https:" &&
       (hostname === "marcellino10.online" ||
@@ -52,7 +65,7 @@ app.get("/matches", (req, res) => res.json(getMatchHistory()));
 
 let server;
 
-if (isProduction) {
+if (useLocalSsl) {
   const sslOptions = {
     key: fs.readFileSync("/etc/letsencrypt/live/marcellino10.online/privkey.pem"),
     cert: fs.readFileSync("/etc/letsencrypt/live/marcellino10.online/fullchain.pem"),
@@ -69,9 +82,7 @@ if (isProduction) {
   server.listen(443, () => console.log("Server running on port 443"));
 } else {
   server = http.createServer(app);
-  server.listen(process.env.PORT || 3001, () =>
-    console.log(`Server running on port ${process.env.PORT || 3001}`)
-  );
+  server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
 
 const io = new Server(server, {
