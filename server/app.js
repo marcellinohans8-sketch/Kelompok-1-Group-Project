@@ -21,9 +21,8 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "https://kelompok-1-group-project-g4g2.vercel.app",
+  "https://kelompok-1-group-project-m9pm.vercel.app",
   "https://marcellino10.online",
-  "https://www.marcellino10.online",
-  "https://kelompok-1-group-project-mzg1.vercel.app",
   process.env.CLIENT_URL,
 ].filter(Boolean);
 
