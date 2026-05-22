@@ -9,43 +9,76 @@ const { getLeaderboard, getMatchHistory } = require("./services/matchStore");
 const cors = require("cors");
 
 const app = express();
-
-// SSL Certificate
-const sslOptions = {
-  key: fs.readFileSync("/etc/letsencrypt/live/marcellino10.online/privkey.pem"),
-  cert: fs.readFileSync(
-    "/etc/letsencrypt/live/marcellino10.online/fullchain.pem",
-  ),
-};
+const isProduction = process.env.NODE_ENV === "production";
 
 const allowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "https://kelompok-1-group-project-g4g2.vercel.app",
   "https://marcellino10.online",
+  "https://www.marcellino10.online",
   process.env.CLIENT_URL,
 ].filter(Boolean);
 
-app.use(cors({ origin: allowedOrigins, credentials: true }));
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+
+  try {
+    const { hostname, protocol } = new URL(origin);
+    return (
+      protocol === "https:" &&
+      (hostname === "marcellino10.online" ||
+        hostname === "www.marcellino10.online" ||
+        hostname.endsWith(".vercel.app"))
+    );
+  } catch {
+    return false;
+  }
+}
+
+const corsOptions = {
+  origin(origin, callback) {
+    callback(null, isAllowedOrigin(origin));
+  },
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
 
 app.get("/", (req, res) => res.send("Server is running"));
 app.get("/leaderboard", (req, res) => res.json(getLeaderboard()));
 app.get("/matches", (req, res) => res.json(getMatchHistory()));
 
-// Redirect HTTP ke HTTPS
-const httpApp = express();
-httpApp.use((req, res) => {
-  res.redirect("https://" + req.headers.host + req.url);
-});
+let server;
 
-http.createServer(httpApp).listen(80);
+if (isProduction) {
+  const sslOptions = {
+    key: fs.readFileSync("/etc/letsencrypt/live/marcellino10.online/privkey.pem"),
+    cert: fs.readFileSync("/etc/letsencrypt/live/marcellino10.online/fullchain.pem"),
+  };
 
-// HTTPS Server + Socket.io
-const server = https.createServer(sslOptions, app);
+  // Redirect HTTP ke HTTPS
+  const httpApp = express();
+  httpApp.use((req, res) => {
+    res.redirect("https://" + req.headers.host + req.url);
+  });
+  http.createServer(httpApp).listen(80);
+
+  server = https.createServer(sslOptions, app);
+  server.listen(443, () => console.log("Server running on port 443"));
+} else {
+  server = http.createServer(app);
+  server.listen(process.env.PORT || 3001, () =>
+    console.log(`Server running on port ${process.env.PORT || 3001}`)
+  );
+}
 
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin(origin, callback) {
+      callback(null, isAllowedOrigin(origin));
+    },
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -55,5 +88,3 @@ io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
   gameSocket(io, socket);
 });
-
-server.listen(443, () => console.log("Server running on port 443"));

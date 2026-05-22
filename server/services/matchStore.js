@@ -1,5 +1,13 @@
+const fs = require("fs");
+const path = require("path");
+
+const DATA_DIR = path.join(__dirname, "..", "data");
+const DATA_FILE = path.join(DATA_DIR, "matches.json");
+
 const leaderboard = {};
 const matchHistory = [];
+
+loadData();
 
 function ensurePlayer(name) {
   const playerName = normalizeName(name);
@@ -70,6 +78,8 @@ function recordMatch({ mode, roomId, players, winner, board }) {
     matchHistory.length = 50;
   }
 
+  saveData();
+
   return match;
 }
 
@@ -83,6 +93,36 @@ function getLeaderboard() {
 
 function getMatchHistory() {
   return matchHistory;
+}
+
+function loadData() {
+  try {
+    if (!fs.existsSync(DATA_FILE)) return;
+
+    const data = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+
+    if (Array.isArray(data.matchHistory)) {
+      matchHistory.splice(0, matchHistory.length, ...data.matchHistory);
+    }
+
+    if (data.leaderboard && typeof data.leaderboard === "object") {
+      Object.assign(leaderboard, data.leaderboard);
+    }
+  } catch (error) {
+    console.error("[MATCH STORE] Failed to load data:", error.message);
+  }
+}
+
+function saveData() {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(
+      DATA_FILE,
+      JSON.stringify({ leaderboard, matchHistory }, null, 2),
+    );
+  } catch (error) {
+    console.error("[MATCH STORE] Failed to save data:", error.message);
+  }
 }
 
 module.exports = { getLeaderboard, getMatchHistory, recordMatch };
