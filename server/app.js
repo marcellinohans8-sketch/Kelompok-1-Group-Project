@@ -1,40 +1,47 @@
 require("dotenv").config();
-const PORT = process.env.PORT || 3001;
-
 const express = require("express");
 const http = require("http");
+const https = require("https");
+const fs = require("fs");
 const { Server } = require("socket.io");
 const gameSocket = require("./socket/gameSocket");
 const { getLeaderboard, getMatchHistory } = require("./services/matchStore");
 const cors = require("cors");
 
 const app = express();
-const server = http.createServer(app);
+
+// SSL Certificate
+const sslOptions = {
+  key: fs.readFileSync("/etc/letsencrypt/live/marcellino10.online/privkey.pem"),
+  cert: fs.readFileSync(
+    "/etc/letsencrypt/live/marcellino10.online/fullchain.pem",
+  ),
+};
+
 const allowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "https://kelompok-1-group-project-g4g2.vercel.app",
+  "https://marcellino10.online",
   process.env.CLIENT_URL,
 ].filter(Boolean);
 
-app.use(
-  cors({
-    origin: allowedOrigins,
-    credentials: true,
-  }),
-);
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 
-app.get("/", (req, res) => {
-  res.send("Server is running");
+app.get("/", (req, res) => res.send("Server is running"));
+app.get("/leaderboard", (req, res) => res.json(getLeaderboard()));
+app.get("/matches", (req, res) => res.json(getMatchHistory()));
+
+// Redirect HTTP ke HTTPS
+const httpApp = express();
+httpApp.use((req, res) => {
+  res.redirect("https://" + req.headers.host + req.url);
 });
 
-app.get("/leaderboard", (req, res) => {
-  res.json(getLeaderboard());
-});
+http.createServer(httpApp).listen(80);
 
-app.get("/matches", (req, res) => {
-  res.json(getMatchHistory());
-});
+// HTTPS Server + Socket.io
+const server = https.createServer(sslOptions, app);
 
 const io = new Server(server, {
   cors: {
@@ -49,4 +56,4 @@ io.on("connection", (socket) => {
   gameSocket(io, socket);
 });
 
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(443, () => console.log("Server running on port 443"));
