@@ -23,6 +23,7 @@ const allowedOrigins = [
   "https://kelompok-1-group-project-g4g2.vercel.app",
   "https://marcellino10.online",
   "https://www.marcellino10.online",
+  "https://kelompok-1-group-project-mzg1.vercel.app/",
   process.env.CLIENT_URL,
 ].filter(Boolean);
 
@@ -67,8 +68,12 @@ let server;
 
 if (useLocalSsl) {
   const sslOptions = {
-    key: fs.readFileSync("/etc/letsencrypt/live/marcellino10.online/privkey.pem"),
-    cert: fs.readFileSync("/etc/letsencrypt/live/marcellino10.online/fullchain.pem"),
+    key: fs.readFileSync(
+      "/etc/letsencrypt/live/marcellino10.online/privkey.pem",
+    ),
+    cert: fs.readFileSync(
+      "/etc/letsencrypt/live/marcellino10.online/fullchain.pem",
+    ),
   };
 
   // Redirect HTTP ke HTTPS
