@@ -23,6 +23,8 @@ export default function GameAI() {
   const [winner, setWinner] = useState(null);
   const [roomId, setRoomId] = useState(null);
   const [isThinking, setIsThinking] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+  const [connectionError, setConnectionError] = useState("");
 
   function showToast(text, color = "#ef4444") {
     Toastify({
@@ -36,6 +38,10 @@ export default function GameAI() {
 
   function handleMove(r, c) {
     if (!socketRef.current) return;
+    if (!isReady || !roomId) {
+      showToast("Game is still connecting...", "#f59e0b");
+      return;
+    }
     if (winner) return;
 
     if (turn !== "X") {
@@ -56,14 +62,34 @@ export default function GameAI() {
     const socket = io(baseUrl, {
       transports: ["polling", "websocket"],
       withCredentials: true,
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
     socketRef.current = socket;
+
+    function joinAI() {
+      setConnectionError("");
+      socket.emit("joinAI", {
+        size,
+        playerName: localStorage.getItem("playerName") || "Guest",
+      });
+    }
+
+    socket.on("connect", joinAI);
+
+    socket.on("connect_error", (error) => {
+      setIsReady(false);
+      setConnectionError(error.message || "Cannot connect to server");
+    });
 
     socket.on("startGame", (data) => {
       setBoard(data.board);
       setTurn(data.turn);
       setRoomId(data.roomId);
       setWinner(null);
+      setIsReady(true);
+      setConnectionError("");
     });
 
     socket.on("updateGame", ({ board, turn, winner }) => {
@@ -80,15 +106,14 @@ export default function GameAI() {
       setIsThinking(thinking);
     });
 
-    socket.emit("joinAI", {
-      size,
-      playerName: localStorage.getItem("playerName") || "Guest",
-    });
-
-    return () => socket.disconnect();
+    return () => {
+      setIsReady(false);
+      socket.disconnect();
+    };
   }, []);
 
   function resetGame() {
+    setIsReady(false);
     socketRef.current.emit("joinAI", {
       size,
       playerName: localStorage.getItem("playerName") || "Guest",
@@ -159,6 +184,8 @@ export default function GameAI() {
                   ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-500"
                   : isThinking
                     ? "border-violet-400/30 bg-violet-400/10 text-violet-500"
+                  : !isReady
+                    ? "border-amber-400/30 bg-amber-400/10 text-amber-500"
                     : turn === "X"
                       ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-500"
                       : "border-amber-400/30 bg-amber-400/10 text-amber-500"
@@ -166,7 +193,9 @@ export default function GameAI() {
             >
               {winner
                 ? `Winner: ${winner}`
-                : isThinking
+                : !isReady
+                  ? connectionError || "Connecting..."
+                  : isThinking
                   ? "AI is thinking..."
                   : turn === "X"
                     ? "Your turn"
@@ -215,7 +244,7 @@ export default function GameAI() {
                 <button
                   key={i}
                   onClick={() => handleMove(r, c)}
-                  disabled={winner || isThinking}
+                  disabled={!isReady || winner || isThinking}
                   className={`flex aspect-square items-center justify-center rounded-3xl text-5xl font-black leading-none shadow-sm transition hover:-translate-y-0.5 ${
                     cell === "X"
                       ? "bg-cyan-500 text-slate-950"
